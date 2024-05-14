@@ -10,6 +10,11 @@ try:
 except Exception as e:
     st.error("Error loading model: " + str(e))
 
+st.set_page_config(
+    page_title="Font-Classification",
+    page_icon="🧊"
+    
+)
 # Define the Streamlit app
 def main():
     st.title("Font Classification")
