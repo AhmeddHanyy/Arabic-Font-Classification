@@ -1,14 +1,17 @@
 import joblib
 import pickle
 import numpy as np
-import cv2
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 import numpy as np
-import cv2
+from cv2 import medianBlur, threshold, cvtColor, COLOR_BGR2GRAY, getStructuringElement, MORPH_RECT, morphologyEx, \
+                CHAIN_APPROX_SIMPLE, RETR_EXTERNAL, boundingRect, filter2D, warpAffine, getRotationMatrix2D, \
+                THRESH_BINARY, THRESH_OTSU, SIFT_create, getGaborKernel,MORPH_CLOSE,findContours,COLOR_GRAY2BGR, minAreaRect,boxPoints,drawContours,COLOR_BGR2RGB,CV_8U,CV_32F,COLOR_RGB2GRAY,COLOR_RGB2BGR
+
+
 
 
 scaler = joblib.load("minmax_scaler.pkl")
@@ -49,11 +52,11 @@ class ImagePreprocessor:
         After thresholding, it calls fix_color to ensure proper contrast.
         """
         # Apply median blurring twice to reduce noise
-        self.img = cv2.medianBlur(self.img, 3)
-        self.img = cv2.medianBlur(self.img, 3)
+        self.img = medianBlur(self.img, 3)
+        self.img = medianBlur(self.img, 3)
         
         # Apply Otsu's thresholding
-        _, self.img = cv2.threshold(self.img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        _, self.img = threshold(self.img, 0, 255, THRESH_BINARY + THRESH_OTSU)
         
         # Ensure the text is darker than the background
         self.fix_color()
@@ -67,19 +70,19 @@ class ImagePreprocessor:
             display_rectangles (bool): If True, display the image with rectangles drawn around detected contours.
         """
         # Apply morphological closing to make the contours more detectable
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (structuring_element_size, structuring_element_size))
-        processed = cv2.morphologyEx(self.img, cv2.MORPH_CLOSE, kernel)
+        kernel = getStructuringElement(MORPH_RECT, (structuring_element_size, structuring_element_size))
+        processed = morphologyEx(self.img, MORPH_CLOSE, kernel)
 
         # Find contours in the processed image
-        contours, _ = cv2.findContours(processed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = findContours(processed, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE)
 
         # Optional: prepare image for rectangle visualization
         if display_rectangles: 
-            color_img = cv2.cvtColor(self.img, cv2.COLOR_GRAY2BGR)
+            color_img = cvtColor(self.img, COLOR_GRAY2BGR)
 
         # Process each detected contour
         for contour in contours:
-            rect = cv2.minAreaRect(contour)  # get the minimum area rectangle
+            rect = minAreaRect(contour)  # get the minimum area rectangle
             angle = rect[2]  # extract the angle
             
             # Adjust angle for a consistent representation
@@ -90,13 +93,13 @@ class ImagePreprocessor:
 
             # If displaying rectangles, draw them on the image
             if display_rectangles:
-                box = cv2.boxPoints(rect)
+                box = boxPoints(rect)
                 box = np.int0(box)
-                cv2.drawContours(color_img, [box], 0, (0, 255, 0), 2)
+                drawContours(color_img, [box], 0, (0, 255, 0), 2)
 
         # Show the image with drawn rectangles
         if display_rectangles:
-            plt.imshow(cv2.cvtColor(color_img, cv2.COLOR_BGR2RGB))
+            plt.imshow(cvtColor(color_img, COLOR_BGR2RGB))
             plt.show()
 
     def plot_angles_histogram(self):
@@ -133,10 +136,10 @@ class ImagePreprocessor:
         center = (w / 2, h / 2)  # image center
 
         # Compute the rotation matrix for the rotation and the scale
-        M = cv2.getRotationMatrix2D(center, angle, 1.0)
+        M = getRotationMatrix2D(center, angle, 1.0)
         
         # Apply the rotation to the image
-        rotated_img = cv2.warpAffine(self.img, M, (w, h))
+        rotated_img = warpAffine(self.img, M, (w, h))
         
         # Update the image
         self.img = rotated_img
@@ -152,17 +155,17 @@ class ImagePreprocessor:
             numpy.ndarray: The cropped region with the largest bounding rectangle.
         """
         # Apply morphological closing to connect the text regions
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (structuring_element_size, structuring_element_size))
-        closed_img = cv2.morphologyEx(self.img, cv2.MORPH_CLOSE, kernel)
+        kernel = getStructuringElement(MORPH_RECT, (structuring_element_size, structuring_element_size))
+        closed_img = morphologyEx(self.img, MORPH_CLOSE, kernel)
 
         # Find contours in the closed image
-        contours, _ = cv2.findContours(closed_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = findContours(closed_img, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE)
 
         # Find the contour with the largest bounding rectangle
         max_area = 0
         max_rect = None
         for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
+            x, y, w, h = boundingRect(contour)
             area = w * h
             if area > max_area:
                 max_area = area
@@ -202,11 +205,11 @@ class BoVW:
 
     def extract_SIFT_descriptors(self, data):
         descriptors = []
-        sift = cv2.SIFT_create()
+        sift = SIFT_create()
         for img in data:
             img = (255 * img).astype(np.uint8)
             if len(img.shape) == 3: 
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                img = cvtColor(img, COLOR_BGR2GRAY)
             kp, desc = sift.detectAndCompute(img, None)
             if desc is not None:
                 descriptors.append(desc)
@@ -258,8 +261,8 @@ class GaborExtractor:
                 λ = 1 / frequency  # Wavelength
                 γ = 0.5  # Spatial aspect ratio
                 kernel_size = int(3 * σ) if int(3 * σ) % 2 == 1 else int(3 * σ) + 1  # Ensure kernel size is odd
-                zero_kernel = cv2.getGaborKernel((kernel_size, kernel_size), σ, θ, λ, γ, 0, ktype=cv2.CV_32F)
-                neg_kernel = cv2.getGaborKernel((kernel_size, kernel_size), σ, θ, λ, γ, np.pi/2, ktype=cv2.CV_32F)
+                zero_kernel = getGaborKernel((kernel_size, kernel_size), σ, θ, λ, γ, 0, ktype=CV_32F)
+                neg_kernel = getGaborKernel((kernel_size, kernel_size), σ, θ, λ, γ, np.pi/2, ktype=CV_32F)
                 self.filters.append([zero_kernel, neg_kernel])
 
     def extract_gabor_features(self, data, orientations, frequencies, sigmas):
@@ -272,8 +275,8 @@ class GaborExtractor:
             feature_vector_index = 0
             image_responses = []
             for zero_kernel, neg_kernel in self.filters:
-                zero_filtered = cv2.filter2D(data[i], cv2.CV_8U, zero_kernel)
-                neg_filtered = cv2.filter2D(data[i], cv2.CV_8U, neg_kernel)
+                zero_filtered = filter2D(data[i], CV_8U, zero_kernel)
+                neg_filtered = filter2D(data[i], CV_8U, neg_kernel)
                 E = np.sqrt(zero_filtered ** 2 + neg_filtered ** 2)
                 E = np.clip(E, -1e10, 1e10)  # Clamp the values to a reasonable range
                 image_responses.append(E)
@@ -321,7 +324,7 @@ class LawsExtractor:
             print(i)
             feature_vector = []
             for kernel in self.filters:
-                filtered_image = np.abs(cv2.filter2D(image, -1, kernel))
+                filtered_image = np.abs(filter2D(image, -1, kernel))
                 energy = np.mean(filtered_image)
                 std = np.std(filtered_image)
                 feature_vector.extend([energy, std])
@@ -381,7 +384,7 @@ class ImagePreprocessorTransformer(BaseEstimator, TransformerMixin):
     def transform(self, X, y=None):
         processed_images = []
         for img in X:
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+            img = cvtColor(img, COLOR_RGB2GRAY)
             image_processor = ImagePreprocessor(img)
             processed_img = image_processor.preprocess_image()
             processed_images.append((processed_img > 127).astype(np.uint8))

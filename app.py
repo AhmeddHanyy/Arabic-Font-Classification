@@ -26,7 +26,7 @@ def main():
         image_array = np.array(image)
 
         # Convert the image to OpenCV object in RGB format
-        image_cv2 = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+        image_cv2 = cvtColor(image_array, COLOR_RGB2BGR)
         
         mapper = {0 : "IBM", 1: "Lemonada", 2: "Marhey", 3: "Scheherazade New"}
         # Make prediction
