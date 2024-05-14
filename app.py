@@ -2,7 +2,6 @@ import streamlit as st
 import joblib
 import numpy as np
 from PIL import Image
-import cv2
 from model import *
 
 # Load the trained model
